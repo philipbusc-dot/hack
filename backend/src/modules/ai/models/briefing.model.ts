@@ -12,8 +12,8 @@ import type {
   ThreatLevel,
 } from "../types/ai.types";
 
-/** Bangkok default locale (design canon). Used for DB-derived defaults. */
-const BANGKOK = { name: "Bangkok", lat: 13.7563, lng: 100.5018 };
+/** Bangkok default locale (design canon). */
+const BANGKOK = { name: "Bangkok" };
 
 /** Guardrail-encoding system prompt for the OpenAI path. */
 const SYSTEM =
@@ -26,95 +26,25 @@ const SYSTEM =
   "Never diagnose disease, prescribe medicine, or act as a doctor. " +
   "Keep replies to 2–4 short sentences unless more detail is clearly needed.";
 
-/** Great-circle distance in km between two lat/lng points. */
-function haversineKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 /**
- * Resolve the live briefing context: body values win, otherwise derive
- * defaults from the DB (Bangkok Metropolis region + nearby verified-clean
- * survivors). Defaults to Bangkok / HIGH threat when the DB is empty.
+ * Resolve the briefing context. Body values win; anything missing falls back
+ * to the Bangkok / HIGH-threat design canon. The AI module is self-contained:
+ * live region/survivor data belongs to other features' tables, so it is only
+ * used here when passed in the request (e.g. at integration time).
  */
 export async function resolveContext(
   input: BriefingInput
 ): Promise<BriefingContext> {
-  let regionalRisk = input.regionalRisk;
-  let hospitalStrain = input.hospitalStrain;
-  let humidity = input.humidity;
-  let airportActivity = input.airportActivity;
-  let nearbySurvivors = input.nearbySurvivors;
-  let compatibilityScore = input.compatibilityScore;
-
-  // Pull the Bangkok region snapshot for any missing environmental factor.
-  if (
-    regionalRisk === undefined ||
-    hospitalStrain === undefined ||
-    humidity === undefined ||
-    airportActivity === undefined
-  ) {
-    try {
-      const region =
-        (await prisma.regionRisk.findFirst({
-          where: { regionName: "Bangkok Metropolis" },
-        })) ??
-        (await prisma.regionRisk.findFirst({
-          orderBy: { regionalRisk: "desc" },
-        }));
-      if (region) {
-        regionalRisk ??= region.regionalRisk;
-        hospitalStrain ??= region.hospitalStrain;
-        humidity ??= region.humidity;
-        airportActivity ??= region.airportTraffic;
-      }
-    } catch {
-      /* DB unavailable — fall through to literal defaults below */
-    }
-  }
-
-  // Count verified-clean survivors within ~4km of Bangkok + best compatibility.
-  if (nearbySurvivors === undefined || compatibilityScore === undefined) {
-    try {
-      const mates = await prisma.survivorMate.findMany({
-        where: { verifiedClean: true },
-      });
-      const near = mates.filter(
-        (m) =>
-          haversineKm(BANGKOK.lat, BANGKOK.lng, m.latitude, m.longitude) <= 4
-      );
-      nearbySurvivors ??= near.length;
-      const pool = near.length > 0 ? near : mates;
-      compatibilityScore ??=
-        pool.length > 0
-          ? Math.round(Math.max(...pool.map((m) => m.compatibilityScore)))
-          : 0;
-    } catch {
-      /* DB unavailable — fall through to literal defaults below */
-    }
-  }
-
-  const resolvedRisk = regionalRisk ?? 78;
+  const regionalRisk = input.regionalRisk ?? 78;
   return {
     location: input.location ?? BANGKOK.name,
-    threatLevel: riskToDanger(resolvedRisk),
-    regionalRisk: resolvedRisk,
-    hospitalStrain: hospitalStrain ?? 88,
-    humidity: humidity ?? 74,
-    airportActivity: airportActivity ?? 92,
-    nearbySurvivors: nearbySurvivors ?? 3,
-    compatibilityScore: compatibilityScore ?? 91,
+    threatLevel: riskToDanger(regionalRisk),
+    regionalRisk,
+    hospitalStrain: input.hospitalStrain ?? 88,
+    humidity: input.humidity ?? 74,
+    airportActivity: input.airportActivity ?? 92,
+    nearbySurvivors: input.nearbySurvivors ?? 3,
+    compatibilityScore: input.compatibilityScore ?? 91,
   };
 }
 

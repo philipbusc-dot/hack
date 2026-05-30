@@ -10,48 +10,6 @@ datasource db {
   provider = "sqlite"
 }
 
-// Feature 1 — Global Infection Map
-model CountryReport {
-  id            String   @id @default(cuid())
-  countryCode   String   @unique
-  countryName   String
-  infectedCount Int
-  deathCount    Int
-  recoveryCount Int
-  dangerLevel   String // LOW | MODERATE | HIGH
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-// Feature 2 — Survival Risk Calculator
-model RegionRisk {
-  id                String   @id @default(cuid())
-  countryCode       String
-  regionName        String
-  infectionRate     Float
-  populationDensity Float
-  airportTraffic    Float
-  humidity          Float
-  hospitalStrain    Float
-  regionalRisk      Float
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-// Feature 3 — Medical + Mate Locator
-model SurvivorMate {
-  id                 String   @id @default(cuid())
-  username           String
-  latitude           Float
-  longitude          Float
-  infectionStatus    String // CLEAN | EXPOSED | INFECTED | UNKNOWN
-  compatibilityScore Float
-  personalRiskIndex  Float
-  verifiedClean      Boolean
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-}
-
 // Feature 4 — AI Survival Briefing System
 model KnowledgeArticle {
   id        String   @id @default(cuid())
@@ -61,4 +19,17 @@ model KnowledgeArticle {
   source    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Authentication — site accounts.
+// role: "admin" (may edit Map data) | "survivor" (standard user).
+// Signup only ever creates survivors; admins are seeded (see prisma/seed.ts).
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  role         String   @default("survivor")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
