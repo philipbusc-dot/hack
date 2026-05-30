@@ -11,6 +11,8 @@ export default function EvacuationView() {
   async function load() {
     setLoading(true);
     setError(null);
+
+    // The evacuation plan uses the scenario defaults resolved server-side.
     try {
       setData(await generateEvacuation());
     } catch {

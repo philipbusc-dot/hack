@@ -6,6 +6,9 @@
     "strict": true,
     "esModuleInterop": true,
     "ignoreDeprecations": "6.0",
-    "types": ["node"]
+    "types": ["node"],
+    // Runtime is tsx — we never compile to JS. noEmit keeps a stray `tsc`
+    // from littering .js files next to the .ts sources.
+    "noEmit": true
   }
 }

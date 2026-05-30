@@ -43,10 +43,29 @@ export async function generateActions(
   return data;
 }
 
-/** Convenience: evacuation mode. */
-export async function generateEvacuation(): Promise<EvacuationBriefing> {
+/** Live context fed into the evacuation plan (sourced from the Connect tab). */
+export interface EvacuationContext {
+  /** Where the survivor currently is (their Connect base location). */
+  location?: string;
+  /** How many nearby survivors Connect found. */
+  nearbySurvivors?: number;
+  /** Best nearby-survivor compatibility score (0–100). */
+  compatibilityScore?: number;
+  /** Regional risk score (0–100), if available. */
+  regionalRisk?: number;
+}
+
+/**
+ * Convenience: evacuation mode. Optionally grounded in the survivor's live
+ * Connect data (GPS location + nearby survivors). With no context it falls
+ * back to the scenario defaults server-side.
+ */
+export async function generateEvacuation(
+  context: EvacuationContext = {}
+): Promise<EvacuationBriefing> {
   const { data } = await api.post<EvacuationBriefing>("/ai/generate-briefing", {
     mode: "evacuation",
+    ...context,
   });
   return data;
 }
