@@ -40,4 +40,3 @@ npm run build
   - `useChatMessages.ts`: Manages secure messaging history, input controls, and automated 4-second polling updates.
 - `apis/Connect.api.ts`: API service wrappers around Axios connections.
 - `types/connect.types.ts`: TypeScript contracts representing survivor profiles and dynamic supplies.
-- `utils/mockSurvivors.ts`: Offline backup mock data containing matching structured supply items.
