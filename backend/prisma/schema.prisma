@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -26,4 +24,44 @@ model AdditionRecord {
   b         Float
   result    Float
   createdAt DateTime @default(now())
+}
+
+model Survivor {
+  id             String   @id @default(uuid())
+  name           String
+  age            Int
+  bio            String
+  baseLocation   String
+  latitude       Float
+  longitude      Float
+  avatarUrl      String
+  isCurrentUser  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  supplies       Supply[]
+}
+
+model Supply {
+  id         String   @id @default(uuid())
+  label      String
+  value      Int
+  unit       String
+  survivorId String
+  survivor   Survivor @relation(fields: [survivorId], references: [id], onDelete: Cascade)
+}
+
+model Match {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     String // "like", "love", "no"
+  createdAt  DateTime @default(now())
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  text       String
+  timestamp  String // e.g. "03:14 AM"
+  createdAt  DateTime @default(now())
 }
