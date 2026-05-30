@@ -1,7 +1,30 @@
 // ─── Prisma Model Shapes ─────────────────────────────────────────────────────
 // These mirror the Prisma-generated model types without depending on @ts-nocheck files.
 
-export interface Survivor {
+/**
+ * The DB shape the model layer returns: a User row (after the User↔Survivor
+ * merge) together with its survival statistics. The controller maps this to the
+ * frontend-facing `SurvivorView`.
+ */
+export interface UserWithStats {
+  id: string;
+  username: string;
+  description: string | null;
+  age: number | null;
+  baseLocation: string | null;
+  lat: number | null;
+  lng: number | null;
+  photoUrl: string | null;
+  createdAt: Date;
+  stats: { id: string; name: string; value: number; unit: string }[];
+}
+
+/**
+ * A survivor profile as the frontend consumes it. Field names are preserved
+ * from the pre-merge `Survivor` shape (name/bio/avatarUrl/latitude/…) so the
+ * Connect frontend needs no changes; the controller maps a `User` into this.
+ */
+export interface SurvivorView {
   id: string;
   name: string;
   age: number;
@@ -10,7 +33,6 @@ export interface Survivor {
   latitude: number;
   longitude: number;
   avatarUrl: string;
-  isCurrentUser: boolean;
   createdAt: Date;
   supplies: SupplyItem[];
 }
@@ -72,21 +94,24 @@ export interface PersonalRisk {
 // ─── Survivor / Nearby Survivors ─────────────────────────────────────────────
 
 /** Full survivor profile enriched with computed fields for the nearby-feed */
-export interface SurvivorProfileResponse extends Survivor, PersonalRisk {
+export interface SurvivorProfileResponse extends SurvivorView, PersonalRisk {
   /** Human-readable Haversine distance, e.g. "3.2 km" or "850 m" */
   distance: string;
   /** 10–99 compatibility score */
   compatibilityScore: number;
-  /** Short AI-generated tactical opinion on the pairing */
-  aiOpinion: string;
   /** Structured supply inventory list */
   supplies: SupplyItem[];
+}
+
+/** Response for GET /connect/survivors/:id/opinion (lazy, cached AI opinion). */
+export interface OpinionResponse {
+  aiOpinion: string;
 }
 
 // ─── Matches ──────────────────────────────────────────────────────────────────
 
 /** Matched survivor profile enriched with distance and the swipe type */
-export interface MatchedSurvivorResponse extends Survivor, PersonalRisk {
+export interface MatchedSurvivorResponse extends SurvivorView, PersonalRisk {
   distance: string;
   matchType: "like" | "love";
   /** Structured supply inventory list */
@@ -94,7 +119,7 @@ export interface MatchedSurvivorResponse extends Survivor, PersonalRisk {
 }
 
 /** Current-user profile enriched with their own personal risk factor. */
-export interface CurrentUserResponse extends Survivor, PersonalRisk {
+export interface CurrentUserResponse extends SurvivorView, PersonalRisk {
   supplies: SupplyItem[];
 }
 

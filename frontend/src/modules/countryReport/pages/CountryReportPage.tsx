@@ -25,15 +25,16 @@ export default function CountryReportPage() {
     ?.countryName;
 
   const [reports, setReports] = useState<CountryReport[]>([]);
+  // Country name is auto-derived from the page (not typed); only the
+  // per-report fields live in the form.
   const emptyForm = useMemo(
     () => ({
-      countryCode: code,
-      countryName: passedName ?? "",
+      topic: "",
       severity: "Moderate",
       cases: 0,
       note: "",
     }),
-    [code, passedName]
+    []
   );
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -67,7 +68,12 @@ export default function CountryReportPage() {
     e.preventDefault();
     setError("");
     try {
-      const payload = { ...form, countryCode: code, cases: Number(form.cases) };
+      const payload = {
+        ...form,
+        countryCode: code,
+        countryName, // auto-derived from the page, never typed
+        cases: Number(form.cases),
+      };
       if (editingId === null) {
         await createReport(payload);
       } else {
@@ -85,8 +91,7 @@ export default function CountryReportPage() {
   function startEdit(r: CountryReport) {
     setEditingId(r.id);
     setForm({
-      countryCode: r.countryCode,
-      countryName: r.countryName,
+      topic: r.topic,
       severity: r.severity,
       cases: r.cases,
       note: r.note,
@@ -126,15 +131,15 @@ export default function CountryReportPage() {
           >
             <input
               className="bg-[#0A1613] border border-[#2E4A40] rounded px-3 py-2 text-gray-400"
-              value={code}
+              value={`${countryName} (${code})`}
               disabled
-              aria-label="Country code"
+              aria-label="Country"
             />
             <input
               className="bg-[#0A1613] border border-[#2E4A40] rounded px-3 py-2"
-              placeholder="Country name (e.g. Italy)"
-              value={form.countryName}
-              onChange={(e) => setForm({ ...form, countryName: e.target.value })}
+              placeholder="Topic (e.g. New variant detected)"
+              value={form.topic}
+              onChange={(e) => setForm({ ...form, topic: e.target.value })}
               required
             />
             <select
@@ -201,7 +206,7 @@ export default function CountryReportPage() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{r.countryName}</span>
+                    <span className="font-semibold">{r.topic || r.countryName}</span>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
                         severityColor[r.severity] ?? "bg-gray-500"

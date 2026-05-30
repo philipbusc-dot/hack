@@ -4,6 +4,8 @@ import type { Message } from "../../types/ChatPage.types";
 interface MessageBubbleProps {
   msg: Message;
   activeContact: SurvivorProfile;
+  /** The current user's profile picture, shown on "you" bubbles. */
+  youAvatarUrl?: string | null;
   editingId: string | null;
   editText: string;
   onSetEditText: (text: string) => void;
@@ -21,6 +23,7 @@ interface MessageBubbleProps {
 const MessageBubble = ({
   msg,
   activeContact,
+  youAvatarUrl,
   editingId,
   editText,
   onSetEditText,
@@ -38,15 +41,17 @@ const MessageBubble = ({
 
       {/* Meta row: avatar, name, edit/delete actions */}
       <div className="self-stretch inline-flex justify-between items-center overflow-hidden mb-2 select-none">
-        <div className="flex justify-start items-center gap-2.5">
+        <div className="flex justify-start items-center gap-2.5 min-w-0">
           <div className={`w-6 h-6 rounded-full overflow-hidden shrink-0 ${isYou ? "bg-blue-700" : "bg-neutral-400"}`}>
             {!isYou && activeContact.avatarUrl ? (
               <img src={activeContact.avatarUrl} alt={activeContact.name} className="w-full h-full object-cover" />
+            ) : isYou && youAvatarUrl ? (
+              <img src={youAvatarUrl} alt="you" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-blue-700 rounded-full" />
             )}
           </div>
-          <div className={`text-base font-medium ${isYou ? "text-white" : "text-lime-400"}`}>
+          <div className={`text-base font-medium truncate ${isYou ? "text-white" : "text-lime-400"}`}>
             {isYou ? "you" : activeContact.name}
           </div>
         </div>
@@ -105,7 +110,7 @@ const MessageBubble = ({
             autoFocus
           />
         ) : (
-          <p className={`text-sm md:text-base font-normal font-['Inter'] leading-relaxed wrap-break-words whitespace-pre-wrap ${isYou ? "text-white" : "text-lime-400"}`}>
+          <p className={`text-sm md:text-base font-normal font-['Inter'] leading-relaxed whitespace-pre-wrap wrap-anywhere ${isYou ? "text-white" : "text-lime-400"}`}>
             {msg.text}
           </p>
         )}

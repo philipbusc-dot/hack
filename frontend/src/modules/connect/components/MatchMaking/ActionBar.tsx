@@ -16,10 +16,10 @@ const ActionBar = ({ onPass, onLike, onLove, matchesCount }: ActionBarProps) => 
   const navigate = useNavigate();
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 w-full flex items-center justify-center gap-3 md:gap-10 py-4 md:py-8 z-30 bg-linear-to-t from-neutral-950 via-neutral-950/90 to-transparent">
+    <div className="fixed bottom-0 left-0 right-0 w-full flex items-center justify-center gap-3 md:gap-10 py-4 md:py-8 z-30 bg-linear-to-t from-neutral-950 via-neutral-950/90 to-transparent">
 
       <button
-        onClick={() => alert("Broadcasting Radar Firmware Settings...")}
+        onClick={() => navigate("/profile")}
         className="w-12 h-12 md:w-20 md:h-20 bg-lime-300 hover:bg-lime-400 rounded-full flex justify-center items-center shadow-lg active:scale-95 text-neutral-900 shrink-0 transition-all cursor-pointer"
         title="Settings"
       >

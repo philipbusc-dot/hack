@@ -5,6 +5,8 @@ import type {
   MatchedSurvivorResponse,
   CurrentUserResponse,
   PersonalRisk,
+  SurvivorView,
+  UserWithStats,
   SwipeResponse,
   MessageResponse,
   EditMessageResponse,
@@ -12,6 +14,7 @@ import type {
 } from "../types/connect.types";
 import type { SupplyItem } from "../types/connect.types";
 import { computeResourceMitigation, riskToDanger } from "../../../lib/formulas";
+import { generateText } from "../../../lib/ai";
 import {
   findCurrentUser,
   findAllSurvivors,
@@ -20,14 +23,14 @@ import {
   ensureChatStarter,
   findMatchesBySender,
   findSurvivorsByIds,
+  findUserForOpinion,
+  setOpinion,
   findMessages,
   createMessage,
   scheduleAutoReply,
   updateMessageText,
   deleteMessageById,
 } from "../models/connect.model";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ─── Pure Utility Functions ───────────────────────────────────────────────────
 
@@ -66,6 +69,30 @@ function getSupplyValue(supplies: any[] | undefined, label: string): number {
  * how well-supplied they are (their weakest-link statistic).
  */
 const REGIONAL_BASELINE = 70;
+
+/**
+ * Map a merged `User` row into the frontend-facing survivor profile shape,
+ * preserving the legacy field names (name/bio/avatarUrl/latitude/longitude) so
+ * the Connect frontend is unchanged. Their statistics become `supplies`.
+ */
+function toSurvivorProfile(user: UserWithStats): SurvivorView {
+  return {
+    id: user.id,
+    name: user.username,
+    age: user.age ?? 0,
+    bio: user.description ?? "",
+    baseLocation: user.baseLocation ?? "",
+    latitude: user.lat ?? 0,
+    longitude: user.lng ?? 0,
+    avatarUrl: user.photoUrl ?? "",
+    createdAt: user.createdAt,
+    supplies: user.stats.map((s) => ({
+      label: s.name,
+      value: s.value,
+      unit: s.unit,
+    })),
+  };
+}
 
 /** Map a survivor's supplies to RiskFactor statistics: { name, value, unit }. */
 function toStatistics(supplies: SupplyItem[] | undefined) {
@@ -164,67 +191,67 @@ function calculateCompatibility(
   return { score, opinion };
 }
 
-/** Google Gemini AI — generates a dynamic terminal-style compatibility summary based on supplies */
-async function generateAIOpinion(
-  medkitA: number,
-  waterA: number,
-  foodA: number,
-  medkitB: number,
-  waterB: number,
-  foodB: number,
-  score: number
-): Promise<string> {
-  const fallback =
-    score >= 85
-      ? `Critical Resource Synergy Detected. Supply exchange profiles represent optimal barter compatibility. Joint food reserves (${foodA + foodB} days) and water reserves (${waterA + waterB} days) guarantee prolonged defensive capability. Highly recommended connection.`
-      : score >= 70
-      ? `Stable tactical synergy. Resource balance is favorable. Shared inventory contains sufficient medkits (${medkitA + medkitB} units) for general triage requirements. Recommended connection.`
-      : `High resource deficit warning. Joint stockpile levels are below safety margins. Food (${foodA + foodB} days) or water (${waterA + waterB} days) scarcity poses severe mutual survival strain. Connection is sub-optimal.`;
+// Shown when a survivor has shared no description and no statistics — there's
+// nothing to base an opinion on, so we skip the AI call entirely (saves quota).
+const NO_INFO_OPINION =
+  "Insufficient telemetry. This survivor hasn't shared a description or supply inventory yet — connect to exchange profiles before assessing compatibility.";
 
-  if (!GEMINI_API_KEY) return fallback;
+/** Deterministic fallback when the AI is unavailable / rate-limited. */
+const FALLBACK_OPINION =
+  "Profile telemetry received. Stockpile metrics logged — establish a channel to evaluate inventory synergy and operational longevity firsthand.";
 
-  try {
-    const prompt = `You are a cold-war nuclear apocalypse bunker terminal AI. Write a brief, high-tech tactical summary evaluating the compatibility between two survivors based on their supplies:\nSurvivor A (You): Medkits: ${medkitA}, Water Stock: ${waterA} days, Food Stock: ${foodA} days.\nSurvivor B: Medkits: ${medkitB}, Water Stock: ${waterB} days, Food Stock: ${foodB} days.\nComputed compatibility score: ${score}%.\nStyle rules: Speak like a retro terminal mainframe AI, use terms like 'inventory synergy', 'stockpile metrics', 'operational longevity', keep it under 3-4 short sentences, do not include markdown formatting or quotes.`;
+/** Render a survivor's supplies as a readable inventory line. */
+function describeSupplies(supplies: SupplyItem[]): string {
+  if (!supplies.length) return "none listed";
+  return supplies.map((s) => `${s.label}: ${s.value} ${s.unit}`).join(", ");
+}
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      }
-    );
+/**
+ * Build a standalone opinion of one survivor (not pairwise) from their own
+ * description + statistics, using the SAME AI as the chatbot (lib/ai). The
+ * opinion is viewer-independent so it can be cached on the survivor.
+ *
+ * Returns `cacheable: false` for the no-info placeholder and the AI-unavailable
+ * fallback, so neither is persisted (the no-info case costs nothing; the
+ * fallback should be retried on the next view once the AI is reachable).
+ */
+async function buildCandidateOpinion(
+  survivor: SurvivorView
+): Promise<{ text: string; cacheable: boolean }> {
+  const hasDescription = (survivor.bio ?? "").trim().length > 0;
+  const hasStatistics = survivor.supplies.length > 0;
+  if (!hasDescription && !hasStatistics)
+    return { text: NO_INFO_OPINION, cacheable: false };
 
-    if (!response.ok) throw new Error(`Gemini API responded with status ${response.status}`);
+  const system =
+    "You are a cold-war apocalypse bunker terminal AI profiling a survivor for a pandemic survival network. " +
+    "Assess this survivor as a potential ally based solely on their description and supply statistics. " +
+    "Reply in 2-4 short sentences, retro-terminal tone (terms like 'inventory synergy', 'stockpile metrics', 'operational longevity'). No markdown, no quotes.";
 
-    const data = (await response.json()) as any;
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (text) return text.trim();
-  } catch (err) {
-    console.error("Gemini AI API call failed, reverting to local fallback rules:", err);
-  }
+  const prompt =
+    `Survivor: ${survivor.name}. ` +
+    `Description: ${(survivor.bio ?? "").trim() || "none provided"}. ` +
+    `Statistics — ${describeSupplies(survivor.supplies)}.\n` +
+    `Provide a tactical profile assessment of this survivor as a potential ally.`;
 
-  return fallback;
+  const text = await generateText(system, prompt, { temperature: 0.8, maxTokens: 180 });
+  return text ? { text, cacheable: true } : { text: FALLBACK_OPINION, cacheable: false };
 }
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
-// 1. Get current user's profile info
+// 1. Get current user's profile info (the authenticated account).
 export async function getCurrentUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await findCurrentUser();
-    if (!user) {
+    const raw = await findCurrentUser(req.user!.id);
+    if (!raw) {
       res.status(404).json({ error: "Current user profile not found." });
       return;
     }
+    const profile = toSurvivorProfile(raw);
     const response: CurrentUserResponse = {
-      ...user,
-      supplies: (user.supplies ?? []).map((s) => ({
-        label: s.label,
-        value: s.value,
-        unit: s.unit,
-      })),
-      ...computePersonalRisk(user.supplies),
+      ...profile,
+      ...computePersonalRisk(profile.supplies),
     };
     res.json(response);
   } catch (err) {
@@ -232,56 +259,63 @@ export async function getCurrentUser(req: Request, res: Response, next: NextFunc
   }
 }
 
-// 2. Retrieve nearby survivors with dynamic Haversine distance & AI compatibility
+// 2. Retrieve nearby survivors with dynamic Haversine distance & compatibility.
+// The AI opinion is NOT generated here — it's fetched lazily per profile view
+// (see getSurvivorOpinion) and cached, to conserve AI quota.
 export async function getNearbySurvivors(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await findCurrentUser();
-    if (!user) {
+    const raw = await findCurrentUser(req.user!.id);
+    if (!raw) {
       res.status(404).json({ error: "Current user profile not found." });
       return;
     }
+    const me = toSurvivorProfile(raw);
 
-    const rawSurvivors = await findAllSurvivors(user.id);
+    const rawSurvivors = await findAllSurvivors(me.id);
 
-    const mapped: SurvivorProfileResponse[] = await Promise.all(
-      rawSurvivors.map(async (survivor) => {
-        const distance = calculateDistance(user.latitude, user.longitude, survivor.latitude, survivor.longitude);
-        const comp = calculateCompatibility(
-          getSupplyValue(user.supplies, "Medkit"),
-          getSupplyValue(user.supplies, "Water Stock"),
-          getSupplyValue(user.supplies, "Food Stock"),
-          getSupplyValue(survivor.supplies, "Medkit"),
-          getSupplyValue(survivor.supplies, "Water Stock"),
-          getSupplyValue(survivor.supplies, "Food Stock")
-        );
-        const aiOpinion = await generateAIOpinion(
-          getSupplyValue(user.supplies, "Medkit"),
-          getSupplyValue(user.supplies, "Water Stock"),
-          getSupplyValue(user.supplies, "Food Stock"),
-          getSupplyValue(survivor.supplies, "Medkit"),
-          getSupplyValue(survivor.supplies, "Water Stock"),
-          getSupplyValue(survivor.supplies, "Food Stock"),
-          comp.score
-        );
+    const mapped: SurvivorProfileResponse[] = rawSurvivors.map((rawSurvivor) => {
+      const survivor = toSurvivorProfile(rawSurvivor);
+      const distance = calculateDistance(me.latitude, me.longitude, survivor.latitude, survivor.longitude);
+      const comp = calculateCompatibility(
+        getSupplyValue(me.supplies, "Medkit"),
+        getSupplyValue(me.supplies, "Water Stock"),
+        getSupplyValue(me.supplies, "Food Stock"),
+        getSupplyValue(survivor.supplies, "Medkit"),
+        getSupplyValue(survivor.supplies, "Water Stock"),
+        getSupplyValue(survivor.supplies, "Food Stock")
+      );
 
-        const supplies = (survivor.supplies || []).map((s) => ({
-          label: s.label,
-          value: s.value,
-          unit: s.unit,
-        }));
-
-        return {
-          ...survivor,
-          distance,
-          compatibilityScore: comp.score,
-          aiOpinion,
-          supplies,
-          ...computePersonalRisk(survivor.supplies),
-        };
-      })
-    );
+      return {
+        ...survivor,
+        distance,
+        compatibilityScore: comp.score,
+        ...computePersonalRisk(survivor.supplies),
+      };
+    });
 
     res.json(mapped);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 2b. Lazy AI opinion for one survivor — generated on first view and cached on
+// the survivor; reused until they edit their description/stats (which clears it).
+export async function getSurvivorOpinion(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const candidate = await findUserForOpinion(req.params.id as string);
+    if (!candidate) {
+      res.status(404).json({ error: "Survivor not found." });
+      return;
+    }
+    // Cache hit — reuse the stored opinion, no AI call.
+    if (candidate.aiOpinion) {
+      res.json({ aiOpinion: candidate.aiOpinion });
+      return;
+    }
+    const { text, cacheable } = await buildCandidateOpinion(toSurvivorProfile(candidate));
+    if (cacheable) await setOpinion(candidate.id, text);
+    res.json({ aiOpinion: text });
   } catch (err) {
     next(err);
   }
@@ -291,14 +325,8 @@ export async function getNearbySurvivors(req: Request, res: Response, next: Next
 export async function updateLocation(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const parsed = locationSchema.parse(req.body);
-    const user = await findCurrentUser();
-    if (!user) {
-      res.status(404).json({ error: "Current user profile not found." });
-      return;
-    }
-
-    const updated = await updateSurvivorLocation(user.id, parsed.latitude, parsed.longitude);
-    res.json(updated);
+    const updated = await updateSurvivorLocation(req.user!.id, parsed.latitude, parsed.longitude);
+    res.json(toSurvivorProfile(updated));
   } catch (err) {
     next(err);
   }
@@ -308,16 +336,12 @@ export async function updateLocation(req: Request, res: Response, next: NextFunc
 export async function swipeSurvivor(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const parsed = swipeSchema.parse(req.body);
-    const user = await findCurrentUser();
-    if (!user) {
-      res.status(404).json({ error: "Current user profile not found." });
-      return;
-    }
+    const userId = req.user!.id;
 
-    const match = await createSwipe(user.id, parsed.receiverId, parsed.status);
+    const match = await createSwipe(userId, parsed.receiverId, parsed.status);
 
     if (parsed.status === "like" || parsed.status === "love") {
-      await ensureChatStarter(parsed.receiverId, user.id);
+      await ensureChatStarter(parsed.receiverId, userId);
     }
 
     const response: SwipeResponse = {
@@ -337,29 +361,25 @@ export async function swipeSurvivor(req: Request, res: Response, next: NextFunct
 // 5. List Matched Survivor Profiles
 export async function getMatches(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await findCurrentUser();
-    if (!user) {
+    const raw = await findCurrentUser(req.user!.id);
+    if (!raw) {
       res.status(404).json({ error: "Current user profile not found." });
       return;
     }
+    const me = toSurvivorProfile(raw);
 
-    const matchedLikes = await findMatchesBySender(user.id);
+    const matchedLikes = await findMatchesBySender(me.id);
     const receiverIds = matchedLikes.map((m) => m.receiverId);
     const rawMatchedProfiles = await findSurvivorsByIds(receiverIds);
 
-    const mapped: MatchedSurvivorResponse[] = rawMatchedProfiles.map((survivor) => {
-      const distance = calculateDistance(user.latitude, user.longitude, survivor.latitude, survivor.longitude);
+    const mapped: MatchedSurvivorResponse[] = rawMatchedProfiles.map((rawSurvivor) => {
+      const survivor = toSurvivorProfile(rawSurvivor);
+      const distance = calculateDistance(me.latitude, me.longitude, survivor.latitude, survivor.longitude);
       const correspondingSwipe = matchedLikes.find((m) => m.receiverId === survivor.id);
-      const supplies = (survivor.supplies || []).map((s) => ({
-        label: s.label,
-        value: s.value,
-        unit: s.unit,
-      }));
       return {
         ...survivor,
         distance,
         matchType: (correspondingSwipe?.status || "like") as "like" | "love",
-        supplies,
         ...computePersonalRisk(survivor.supplies),
       };
     });
@@ -374,17 +394,13 @@ export async function getMatches(req: Request, res: Response, next: NextFunction
 export async function getMessages(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const survivorId = req.params.id as string;
-    const user = await findCurrentUser();
-    if (!user) {
-      res.status(404).json({ error: "Current user profile not found." });
-      return;
-    }
+    const userId = req.user!.id;
 
-    const messages = await findMessages(user.id, survivorId);
+    const messages = await findMessages(userId, survivorId);
 
     const mapped: MessageResponse[] = messages.map((m) => ({
       id: m.id,
-      sender: m.senderId === user.id ? "you" : "them",
+      sender: m.senderId === userId ? "you" : "them",
       text: m.text,
       timestamp: m.timestamp,
     }));
@@ -400,14 +416,10 @@ export async function sendMessage(req: Request, res: Response, next: NextFunctio
   try {
     const survivorId = req.params.id as string;
     const parsed = messageSchema.parse(req.body);
-    const user = await findCurrentUser();
-    if (!user) {
-      res.status(404).json({ error: "Current user profile not found." });
-      return;
-    }
+    const userId = req.user!.id;
 
-    const newMessage = await createMessage(user.id, survivorId, parsed.text);
-    scheduleAutoReply(survivorId, user.id);
+    const newMessage = await createMessage(userId, survivorId, parsed.text);
+    scheduleAutoReply(survivorId, userId);
 
     const response: MessageResponse = {
       id: newMessage.id,

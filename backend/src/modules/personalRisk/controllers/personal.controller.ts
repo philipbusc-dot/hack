@@ -14,12 +14,12 @@ import {
 } from "../models/personal.model";
 
 export async function getStats(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    res.json(await listStats());
+    res.json(await listStats(req.user!.id));
   } catch (err) {
     next(err);
   }
@@ -32,7 +32,7 @@ export async function createStat(
 ) {
   try {
     const input = validate(statCreateSchema, req.body);
-    res.status(201).json(await addStat(input));
+    res.status(201).json(await addStat(req.user!.id, input));
   } catch (err) {
     next(err);
   }
@@ -45,7 +45,7 @@ export async function patchStat(
 ) {
   try {
     const input = validate(statUpdateSchema, req.body);
-    const stat = await updateStat(req.params["id"] as string, input);
+    const stat = await updateStat(req.user!.id, req.params["id"] as string, input);
     if (!stat) throw notFound("Stat");
     res.json(stat);
   } catch (err) {
@@ -59,7 +59,7 @@ export async function removeStat(
   next: NextFunction
 ) {
   try {
-    const ok = await deleteStat(req.params["id"] as string);
+    const ok = await deleteStat(req.user!.id, req.params["id"] as string);
     if (!ok) throw notFound("Stat");
     res.status(204).end();
   } catch (err) {
@@ -74,7 +74,7 @@ export async function calculate(
 ) {
   try {
     const { regionalScore } = validate(calcSchema, req.body);
-    res.json(await calculatePersonal(regionalScore));
+    res.json(await calculatePersonal(req.user!.id, regionalScore));
   } catch (err) {
     next(err);
   }

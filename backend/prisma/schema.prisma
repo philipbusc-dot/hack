@@ -32,17 +32,26 @@ model User {
   role         String   @default("survivor")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  photoUrl     String?
+
+  // Profile / survivor display fields (Connect + Profile features).
+  // Optional so a fresh signup is valid; populated via the profile editor.
+  photoUrl     String? // avatar shown in Connect + Profile
+  description  String? // "about me" / bio
   lat          Float? // for nearby matching
   lng          Float?
+  age          Int?
+  baseLocation String?
+
+  // Cached Connect compatibility opinion (AI-generated, lazy). Null = not yet
+  // generated or invalidated after a description/stats edit; regenerated on next view.
+  aiOpinion String?
 
   // Optional: a survivor isn't required to pick a country at signup.
   // Populated later by the risk/connect features.
   countryId String?
   country   Country? @relation(fields: [countryId], references: [id])
 
-  description String?
-  stats       SurvivalStat[]
+  stats SurvivalStat[]
 }
 
 model SurvivalStat {
@@ -90,41 +99,20 @@ model Country {
   regionRiskId String?
 }
 
-model Survivor {
-  id            String   @id @default(uuid())
-  name          String
-  age           Int
-  bio           String
-  baseLocation  String
-  latitude      Float
-  longitude     Float
-  avatarUrl     String
-  isCurrentUser Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  supplies      Supply[]
-}
-
-model Supply {
-  id         String   @id @default(uuid())
-  label      String
-  value      Int
-  unit       String
-  survivorId String
-  survivor   Survivor @relation(fields: [survivorId], references: [id], onDelete: Cascade)
-}
-
+// Match / ChatMessage reference User.id via senderId/receiverId. These are
+// intentionally loose string references (no FK), as before the User↔Survivor merge.
 model Match {
   id         String   @id @default(uuid())
-  senderId   String
-  receiverId String
+  senderId   String // User.id
+  receiverId String // User.id
   status     String // "like", "love", "no"
   createdAt  DateTime @default(now())
 }
 
 model ChatMessage {
   id         String   @id @default(uuid())
-  senderId   String
-  receiverId String
+  senderId   String // User.id
+  receiverId String // User.id
   text       String
   timestamp  String // e.g. "03:14 AM"
   createdAt  DateTime @default(now())
@@ -134,6 +122,7 @@ model CountryReport {
   id          Int      @id @default(autoincrement())
   countryCode String
   countryName String
+  topic       String   @default("") // per-report headline, e.g. "New variant detected"
   severity    String   @default("Moderate")
   cases       Int      @default(0)
   note        String   @default("")

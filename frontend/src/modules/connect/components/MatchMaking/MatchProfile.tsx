@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SurvivorProfile } from "../../types/connect.types";
+import { getSurvivorOpinion } from "../../apis/Connect.api";
 
 interface MatchProfileProps {
     survivor: SurvivorProfile;
@@ -8,11 +9,29 @@ interface MatchProfileProps {
 const MatchProfile = ({ survivor }: MatchProfileProps) => {
     const [prevId, setPrevId] = useState(survivor.id);
     const [imgFailed, setImgFailed] = useState(false);
+    // AI opinion is fetched lazily when this survivor is shown (generated +
+    // cached server-side on first view).
+    const [opinion, setOpinion] = useState<string | null>(null);
 
     if (survivor.id !== prevId) {
         setPrevId(survivor.id);
         setImgFailed(false);
     }
+
+    useEffect(() => {
+        let cancelled = false;
+        setOpinion(null);
+        getSurvivorOpinion(survivor.id)
+            .then((text) => {
+                if (!cancelled) setOpinion(text);
+            })
+            .catch(() => {
+                if (!cancelled) setOpinion("Unable to reach the analysis terminal.");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [survivor.id]);
     // Personal risk factor comes from the RiskFactor module (computed server-side
     // from this survivor's statistics). Fall back to a supply-derived estimate for
     // any legacy profile that hasn't been enriched yet.
@@ -136,7 +155,13 @@ const MatchProfile = ({ survivor }: MatchProfileProps) => {
                     AI’s opinion
                 </div>
                 <div className="self-stretch text-indigo-50 text-xs md:text-sm font-normal font-['Inter'] leading-relaxed">
-                    {survivor.aiOpinion}
+                    {opinion === null ? (
+                        <span className="text-neutral-500 italic animate-pulse">
+                            Analyzing survivor telemetry…
+                        </span>
+                    ) : (
+                        opinion
+                    )}
                 </div>
             </div>
         </div>

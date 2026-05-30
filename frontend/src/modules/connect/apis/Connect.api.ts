@@ -14,6 +14,14 @@ export async function getSurvivors(): Promise<SurvivorProfile[]> {
   return res.data;
 }
 
+// 2b. Lazy AI opinion for one survivor (generated on first view, cached server-side).
+export async function getSurvivorOpinion(survivorId: string): Promise<string> {
+  const res = await api.get<{ aiOpinion: string }>(
+    `/connect/survivors/${survivorId}/opinion`
+  );
+  return res.data.aiOpinion;
+}
+
 // 3. Update Current GPS Location
 export async function updateLocation(latitude: number, longitude: number): Promise<SurvivorProfile> {
   const res = await api.patch<SurvivorProfile>("/connect/location", { latitude, longitude });

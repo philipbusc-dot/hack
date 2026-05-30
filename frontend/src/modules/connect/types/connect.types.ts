@@ -53,8 +53,8 @@ export interface SurvivorProfile {
   bio: string;
   age: number;
   baseLocation: string;
-  /** AI-generated terminal-style compatibility summary */
-  aiOpinion: string;
+  /** AI-generated terminal-style assessment — fetched lazily per view, not in the feed. */
+  aiOpinion?: string;
   avatarUrl: string;
   /** 10–99 compatibility score (only present on the nearby-feed response) */
   compatibilityScore?: number;

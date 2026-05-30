@@ -14,7 +14,7 @@ const mainRouter = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <Navigate to="/ai" replace /> },
+      { index: true, element: <Navigate to="/map" replace /> },
       // Public — login / signup.
       ...authRoutes,
       // Pathless gate: every feature below requires a logged-in user.

@@ -1,5 +1,4 @@
 import { prisma } from "../../../db";
-import { hashPassword } from "../../../lib/auth";
 import {
   computeResourceMitigation,
   riskToDanger,
@@ -10,73 +9,60 @@ import type {
 } from "../types/personal.types";
 import type { StatUpdateInput } from "../schemas/personal.schema";
 
-const DEMO_EMAIL = "demo@safehaivn.local";
+// These statistics are the authenticated user's own SurvivalStat rows — the
+// same data the Profile/settings page edits. Editing here or there is equivalent.
 
-async function getDemoUserId(): Promise<string> {
-  const country = await prisma.country.upsert({
-    where: { code: "TH" },
-    update: {},
-    create: {
-      name: "Thailand",
-      code: "TH",
-      lat: 13.7563,
-      lng: 100.5018,
-      populationDensity: 137,
-      airportTraffic: 65,
-    },
-  });
-  const user = await prisma.user.upsert({
-    where: { email: DEMO_EMAIL },
-    update: {},
-    create: {
-      email: DEMO_EMAIL,
-      username: "demo-survivor",
-      // Demo-only internal user (never logs in); store a hashed placeholder.
-      passwordHash: await hashPassword("demo"),
-      countryId: country.id,
-      description: "Default demo survival profile",
-    },
-  });
-  return user.id;
+/**
+ * Clear the cached Connect AI opinion so it regenerates on next view — stats
+ * changed, so any opinion based on them is stale. Mirrors the profile module.
+ */
+async function invalidateOpinion(userId: string): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { aiOpinion: null } });
 }
 
-export async function listStats() {
-  const userId = await getDemoUserId();
+export async function listStats(userId: string) {
   return prisma.survivalStat.findMany({
     where: { userId },
     orderBy: { id: "asc" },
   });
 }
 
-export async function addStat(input: SurvivalStatInput) {
-  const userId = await getDemoUserId();
-  return prisma.survivalStat.create({
+export async function addStat(userId: string, input: SurvivalStatInput) {
+  const stat = await prisma.survivalStat.create({
     data: { name: input.name, value: input.value, unit: input.unit, userId },
   });
+  await invalidateOpinion(userId);
+  return stat;
 }
 
-export async function updateStat(id: string, input: StatUpdateInput) {
-  const userId = await getDemoUserId();
+export async function updateStat(
+  userId: string,
+  id: string,
+  input: StatUpdateInput
+) {
   const { count } = await prisma.survivalStat.updateMany({
     where: { id, userId },
     data: input,
   });
   if (count === 0) return null;
+  await invalidateOpinion(userId);
   return prisma.survivalStat.findUnique({ where: { id } });
 }
 
-export async function deleteStat(id: string): Promise<boolean> {
-  const userId = await getDemoUserId();
+export async function deleteStat(userId: string, id: string): Promise<boolean> {
   const { count } = await prisma.survivalStat.deleteMany({
     where: { id, userId },
   });
-  return count > 0;
+  if (count === 0) return false;
+  await invalidateOpinion(userId);
+  return true;
 }
 
 export async function calculatePersonal(
+  userId: string,
   regionalScore: number
 ): Promise<PersonalRiskResult> {
-  const stats = await listStats();
+  const stats = await listStats(userId);
 
   let limitingDays: number | null = null;
   let limitingStat: string | null = null;

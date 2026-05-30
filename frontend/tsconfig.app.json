@@ -26,6 +26,6 @@
   },
   "include": [
     "src",
-    "public/tempnav.tsx"
+    "src/modules/navbar/pages/navbar.tsx"
   ]
 }

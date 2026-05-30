@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   getCurrentUser,
   getNearbySurvivors,
+  getSurvivorOpinion,
   updateLocation,
   swipeSurvivor,
   getMatches,
@@ -20,6 +21,7 @@ connectRouter.use(requireAuth);
 // Survivor Profile Actions
 connectRouter.get("/user/me", getCurrentUser);
 connectRouter.get("/survivors", getNearbySurvivors);
+connectRouter.get("/survivors/:id/opinion", getSurvivorOpinion);
 connectRouter.patch("/location", updateLocation);
 
 // Matchmaking Swipe Actions

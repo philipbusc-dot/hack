@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "../src/modules/auth/context/AuthContext";
+import { useAuth } from "../../auth/context/AuthContext";
 
 // Primary navigation. `match` lets a link stay active across nested paths
 // (e.g. RiskFactor highlights for both /risk/region and /risk/yourscore).
 const LINKS: { to: string; label: string; match?: string }[] = [
-  { to: "/ai", label: "AI" },
   { to: "/map", label: "Map" },
   { to: "/risk/region", label: "RiskFactor", match: "/risk" },
   { to: "/connect", label: "Connect" },
+  { to: "/ai", label: "AI" },
 ];
 
 const TempNav = () => {
@@ -16,6 +16,13 @@ const TempNav = () => {
 
   // Hidden when signed out so the login / signup pages stay clean.
   if (!user) return null;
+
+  // Full-screen views with their own layout/navigation: hide the global nav.
+  if (
+    location.pathname.startsWith("/profile") ||
+    location.pathname.startsWith("/chat")
+  )
+    return null;
 
   return (
     <header className="sticky top-0 z-50 flex w-full select-none items-center justify-between gap-4 border-b border-neutral-800 bg-neutral-900/95 px-5 py-3 backdrop-blur">
