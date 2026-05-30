@@ -255,20 +255,83 @@ function fallbackEvacuation(ctx: BriefingContext): EvacuationPayload {
   };
 }
 
+// ── Knowledge-base retrieval (RAG-lite) ─────────────────────────────────────
+
+/** Common words ignored when keyword-matching the knowledge base. */
+const STOPWORDS = new Set([
+  "the", "and", "for", "are", "with", "you", "your", "what", "when", "where",
+  "how", "this", "that", "there", "here", "from", "have", "has", "had", "will",
+  "would", "should", "could", "about", "into", "onto", "they", "them", "then",
+  "than", "but", "not", "can", "dont", "does", "did", "was", "were", "its",
+  "should", "safe", "get", "need", "want", "any", "some", "out",
+]);
+
+/** A retrieved knowledge-base snippet injected into the prompt. */
+interface KnowledgeHit {
+  title: string;
+  content: string;
+}
+
+/**
+ * RAG-lite: find the knowledge-base articles most relevant to the user's
+ * message by simple keyword overlap. The KB is tiny, so we score in memory.
+ * Returns [] (and never throws) when the message is empty or the DB is down.
+ */
+async function retrieveKnowledge(
+  message: string | undefined,
+  limit = 3
+): Promise<KnowledgeHit[]> {
+  const tokens = [
+    ...new Set((message ?? "").toLowerCase().match(/[a-z]{3,}/g) ?? []),
+  ].filter((t) => !STOPWORDS.has(t));
+  if (tokens.length === 0) return [];
+
+  let articles;
+  try {
+    articles = await prisma.knowledgeArticle.findMany();
+  } catch {
+    return []; // DB unavailable — skip retrieval, never break the briefing
+  }
+
+  return articles
+    .map((a) => {
+      const haystack = `${a.title} ${a.content}`.toLowerCase();
+      const score = tokens.reduce(
+        (sum, t) => (haystack.includes(t) ? sum + 1 : sum),
+        0
+      );
+      return { article: a, score };
+    })
+    .filter((s) => s.score > 0)
+    .sort((x, y) => y.score - x.score)
+    .slice(0, limit)
+    .map((s) => ({ title: s.article.title, content: s.article.content }));
+}
+
 // ── OpenAI path ────────────────────────────────────────────────────────────
 
-function buildUserPrompt(input: BriefingInput, ctx: BriefingContext): string {
+function buildUserPrompt(
+  input: BriefingInput,
+  ctx: BriefingContext,
+  articles: KnowledgeHit[] = []
+): string {
   const facts =
     `Context — location: ${ctx.location}; threat level: ${ctx.threatLevel}; regional risk: ${ctx.regionalRisk}/100; ` +
     `hospital strain: ${ctx.hospitalStrain}%; humidity: ${ctx.humidity}%; airport activity: ${ctx.airportActivity}/100; ` +
     `verified-clean survivors within 4km: ${ctx.nearbySurvivors}; best compatibility: ${ctx.compatibilityScore}.`;
 
   if (input.mode === "chat") {
+    const knowledge =
+      articles.length > 0
+        ? `\n\nRelevant knowledge-base entries (draw on these and mention them by name if useful):\n` +
+          articles.map((a) => `- ${a.title}: ${a.content}`).join("\n")
+        : "";
     return (
-      `Current situation data you may reference if relevant — ${facts}\n\n` +
-      `The user just said: "${input.message ?? "Hello"}"\n\n` +
+      `Current situation data you may reference if relevant — ${facts}` +
+      knowledge +
+      `\n\nThe user just said: "${input.message ?? "Hello"}"\n\n` +
       `Reply as SafeHAIVN in a natural, human voice. Respond to what they actually said; ` +
-      `only mention the situation data if it is relevant to their message. Return plain text only.`
+      `only mention the situation data or knowledge-base entries if relevant. Return plain text only.`
     );
   }
   if (input.mode === "actions") {
@@ -300,7 +363,8 @@ function coerceThreat(value: unknown, fallback: ThreatLevel): ThreatLevel {
  */
 async function tryOpenAI(
   input: BriefingInput,
-  ctx: BriefingContext
+  ctx: BriefingContext,
+  articles: KnowledgeHit[]
 ): Promise<ChatPayload | ActionsPayload | EvacuationPayload | null> {
   const apiKey = process.env["OPENAI_API_KEY"];
   if (!apiKey || apiKey.trim().length === 0) return null;
@@ -312,21 +376,33 @@ async function tryOpenAI(
       apiKey,
       baseURL: process.env["OPENAI_BASE_URL"] || undefined,
     });
+
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: SYSTEM },
+    ];
+    // Prior turns give the chatbot short-term memory (chat mode only).
+    if (input.mode === "chat" && input.history) {
+      for (const turn of input.history.slice(-10)) {
+        messages.push({
+          role: turn.role === "ai" ? "assistant" : "user",
+          content: turn.content,
+        });
+      }
+    }
+    messages.push({ role: "user", content: buildUserPrompt(input, ctx, articles) });
+
     const r = await client.chat.completions.create({
       model: process.env["OPENAI_MODEL"] || "gpt-4o-mini",
       // Chat: high temperature for varied, human-sounding replies.
       // actions/evacuation: low temperature so the JSON stays reliable.
       temperature: input.mode === "chat" ? 0.85 : 0.4,
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: buildUserPrompt(input, ctx) },
-      ],
+      messages,
     });
     const content = r.choices[0]?.message?.content?.trim();
     if (!content) return null;
 
     if (input.mode === "chat") {
-      return { reply: content };
+      return { reply: content, sources: articles.map((a) => a.title) };
     }
 
     // actions / evacuation expect JSON — strip code fences then parse.
@@ -403,7 +479,11 @@ export async function generateBriefing(
   const ctx = await resolveContext(input);
   const generatedAt = new Date().toISOString();
 
-  const ai = await tryOpenAI(input, ctx);
+  // RAG-lite: only chat consults the knowledge base.
+  const articles =
+    input.mode === "chat" ? await retrieveKnowledge(input.message) : [];
+
+  const ai = await tryOpenAI(input, ctx, articles);
   const source = ai ? "openai" : "fallback";
 
   if (input.mode === "chat") {

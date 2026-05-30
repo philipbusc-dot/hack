@@ -5,10 +5,18 @@ export type ThreatLevel = "LOW" | "MODERATE" | "HIGH";
 export type BriefingSource = "openai" | "fallback";
 export type ActionPriority = "NOW" | "SOON" | "MONITOR";
 
+/** One prior turn of the conversation, sent so the chatbot has short memory. */
+export interface ChatTurn {
+  role: "user" | "ai";
+  content: string;
+}
+
 /** Inputs accepted by POST /ai/generate-briefing (all optional). */
 export interface BriefingInput {
   mode: BriefingMode;
   message?: string;
+  /** Recent conversation history (chat mode) — gives the bot continuity. */
+  history?: ChatTurn[];
   location?: string;
   regionalRisk?: number;
   hospitalStrain?: number;
@@ -32,6 +40,8 @@ export interface BriefingContext {
 
 export interface ChatPayload {
   reply: string;
+  /** Knowledge-base article titles that informed the reply (RAG-lite). */
+  sources?: string[];
 }
 
 export interface ActionItem {
