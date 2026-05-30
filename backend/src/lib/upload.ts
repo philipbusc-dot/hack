@@ -2,6 +2,7 @@ import multer from "multer";
 import { extname } from "node:path";
 import { createId } from "@paralleldrive/cuid2";
 import { httpError } from "./http";
+import { ChatBriefing } from "../modules/ai/types/ai.types";
 
 // Where uploaded files live. Served publicly via app.use("/uploads", ...).
 export const UPLOAD_DIR = "uploads";
