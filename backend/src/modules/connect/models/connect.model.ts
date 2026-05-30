@@ -11,6 +11,15 @@ export async function findCurrentUser(): Promise<Survivor | null> {
   }) as unknown as Promise<Survivor | null>;
 }
 
+/** The authenticated account's uploaded profile photo, if any (Profile feature). */
+export async function getAccountPhotoUrl(userId: string): Promise<string | null> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { photoUrl: true },
+  });
+  return u?.photoUrl ?? null;
+}
+
 /** Returns all survivors that are NOT the current user and have NOT been swiped by the current user */
 export async function findAllSurvivors(currentUserId: string): Promise<Survivor[]> {
   const swipes = await prisma.match.findMany({

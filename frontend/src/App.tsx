@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import TempNav from "../public/tempnav";
+import TempNav from "./modules/navbar/pages/navbar";
 
 /** Root shell: command-center backdrop + nav bar + routed feature view. */
 const App = () => {

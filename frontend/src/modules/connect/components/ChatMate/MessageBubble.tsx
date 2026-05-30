@@ -4,6 +4,8 @@ import type { Message } from "../../types/ChatPage.types";
 interface MessageBubbleProps {
   msg: Message;
   activeContact: SurvivorProfile;
+  /** The current user's profile picture, shown on "you" bubbles. */
+  youAvatarUrl?: string | null;
   editingId: string | null;
   editText: string;
   onSetEditText: (text: string) => void;
@@ -21,6 +23,7 @@ interface MessageBubbleProps {
 const MessageBubble = ({
   msg,
   activeContact,
+  youAvatarUrl,
   editingId,
   editText,
   onSetEditText,
@@ -42,6 +45,8 @@ const MessageBubble = ({
           <div className={`w-6 h-6 rounded-full overflow-hidden shrink-0 ${isYou ? "bg-blue-700" : "bg-neutral-400"}`}>
             {!isYou && activeContact.avatarUrl ? (
               <img src={activeContact.avatarUrl} alt={activeContact.name} className="w-full h-full object-cover" />
+            ) : isYou && youAvatarUrl ? (
+              <img src={youAvatarUrl} alt="you" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-blue-700 rounded-full" />
             )}

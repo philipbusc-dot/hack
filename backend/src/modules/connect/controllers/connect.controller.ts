@@ -14,6 +14,7 @@ import type { SupplyItem } from "../types/connect.types";
 import { computeResourceMitigation, riskToDanger } from "../../../lib/formulas";
 import {
   findCurrentUser,
+  getAccountPhotoUrl,
   findAllSurvivors,
   updateSurvivorLocation,
   createSwipe,
@@ -217,8 +218,12 @@ export async function getCurrentUser(req: Request, res: Response, next: NextFunc
       res.status(404).json({ error: "Current user profile not found." });
       return;
     }
+    // Prefer the account's uploaded profile photo (Profile feature) over the
+    // seeded survivor avatar, so the pfp uploaded in settings shows in Connect.
+    const photoUrl = req.user ? await getAccountPhotoUrl(req.user.id) : null;
     const response: CurrentUserResponse = {
       ...user,
+      avatarUrl: photoUrl ?? user.avatarUrl,
       supplies: (user.supplies ?? []).map((s) => ({
         label: s.label,
         value: s.value,

@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { ChatMessageProps } from "../../types/ChatPage.types";
 import { Send, Menu } from "lucide-react";
 import { useChatMessages } from "../../hooks/useChatMessages";
+import { getCurrentUser } from "../../apis/Connect.api";
 import MessageBubble from "./MessageBubble";
 
 const ChatMessage = ({ isSidebarOpen, onToggleSidebar }: ChatMessageProps) => {
@@ -21,6 +23,14 @@ const ChatMessage = ({ isSidebarOpen, onToggleSidebar }: ChatMessageProps) => {
         handleSaveEdit,
         cancelEdit,
     } = useChatMessages(id);
+
+    // The current user's profile picture (uploaded in settings), shown on "you" bubbles.
+    const [youAvatar, setYouAvatar] = useState<string | null>(null);
+    useEffect(() => {
+        getCurrentUser()
+            .then((u) => setYouAvatar(u.avatarUrl ?? null))
+            .catch(() => {});
+    }, []);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") handleSend();
@@ -95,6 +105,7 @@ const ChatMessage = ({ isSidebarOpen, onToggleSidebar }: ChatMessageProps) => {
                         key={msg.id}
                         msg={msg}
                         activeContact={activeContact}
+                        youAvatarUrl={youAvatar}
                         editingId={editingId}
                         editText={editText}
                         onSetEditText={setEditText}
