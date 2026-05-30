@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Spinner } from "../../../components/ui";
 import { generateChat } from "../apis/ai.api";
 import RichText from "./RichText";
-import type { ChatMessage } from "../types/ai.types";
+import type { ChatMessage, ChatTurn } from "../types/ai.types";
 
 const CHIPS = ["What should I pack?", "Nearest safe zone?", "How does it spread?"];
 
@@ -55,7 +55,17 @@ function Bubble({ msg }: { msg: ChatMessage }) {
             <Spinner /> Analyzing threat data…
           </span>
         ) : (
-          <RichText text={msg.html} />
+          <>
+            <RichText text={msg.html} />
+            {msg.sources && msg.sources.length > 0 && (
+              <div className="mt-2 border-t border-line pt-2 text-[11px] text-faint">
+                <span className="font-mono uppercase tracking-[0.14em]">
+                  Knowledge base:
+                </span>{" "}
+                {msg.sources.join(" · ")}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -88,6 +98,12 @@ export default function ChatbotView() {
     setInput("");
     setBusy(true);
 
+    // Send the recent thread so the bot has short-term memory of the chat.
+    const history: ChatTurn[] = messages
+      .filter((m) => !m.pending && m.html.trim().length > 0)
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.html }));
+
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: "user",
@@ -101,11 +117,11 @@ export default function ChatbotView() {
     ]);
 
     try {
-      const res = await generateChat(trimmed);
+      const res = await generateChat(trimmed, history);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === pendingId
-            ? { id: pendingId, role: "ai", html: res.reply }
+            ? { id: pendingId, role: "ai", html: res.reply, sources: res.sources }
             : m
         )
       );

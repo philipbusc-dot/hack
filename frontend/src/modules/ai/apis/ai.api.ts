@@ -4,6 +4,7 @@ import type {
   Briefing,
   BriefingRequest,
   ChatBriefing,
+  ChatTurn,
   CreateKnowledgeInput,
   EvacuationBriefing,
   KnowledgeArticle,
@@ -18,13 +19,15 @@ export async function generateBriefing(
   return data;
 }
 
-/** Convenience: chat mode. */
+/** Convenience: chat mode. Pass recent turns so the bot has continuity. */
 export async function generateChat(
-  message: string
+  message: string,
+  history: ChatTurn[] = []
 ): Promise<ChatBriefing> {
   const { data } = await api.post<ChatBriefing>("/ai/generate-briefing", {
     mode: "chat",
     message,
+    history,
   });
   return data;
 }

@@ -5,10 +5,17 @@ export type ThreatLevel = "LOW" | "MODERATE" | "HIGH";
 export type BriefingSource = "openai" | "fallback";
 export type ActionPriority = "NOW" | "SOON" | "MONITOR";
 
+/** One prior conversation turn sent to give the chatbot short-term memory. */
+export interface ChatTurn {
+  role: "user" | "ai";
+  content: string;
+}
+
 /** Request body for POST /ai/generate-briefing (all optional but mode). */
 export interface BriefingRequest {
   mode: BriefingMode;
   message?: string;
+  history?: ChatTurn[];
   location?: string;
   regionalRisk?: number;
   hospitalStrain?: number;
@@ -26,6 +33,8 @@ interface BriefingMeta {
 export interface ChatBriefing extends BriefingMeta {
   mode: "chat";
   reply: string;
+  /** Knowledge-base article titles that informed the reply (RAG-lite). */
+  sources?: string[];
 }
 
 export interface ActionItem {
@@ -76,6 +85,8 @@ export interface ChatMessage {
   /** May contain a small whitelisted set of inline tags (see chat parser). */
   html: string;
   pending?: boolean;
+  /** Knowledge-base article titles cited by this AI reply (RAG-lite). */
+  sources?: string[];
 }
 
 // ── KnowledgeArticle CRUD ──────────────────────────────────────────────────
