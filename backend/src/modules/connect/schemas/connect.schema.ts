@@ -6,7 +6,8 @@ export const locationSchema = z.object({
 });
 
 export const swipeSchema = z.object({
-  receiverId: z.string().uuid(),
+  // User ids are cuid (not uuid) after the User↔Survivor merge.
+  receiverId: z.string().min(1),
   status: z.enum(["like", "love", "no"]),
 });
 

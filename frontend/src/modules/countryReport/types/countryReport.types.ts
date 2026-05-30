@@ -1,6 +1,7 @@
 export interface CountryReportInput {
   countryCode: string;
   countryName: string;
+  topic: string; // per-report headline, e.g. "New variant detected"
   severity: string; // "High" | "Moderate" | "Low"
   cases: number;
   note: string;

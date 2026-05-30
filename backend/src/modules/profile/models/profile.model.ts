@@ -42,12 +42,24 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   return u ? toProfile(u as unknown as UserWithStats) : null;
 }
 
+/**
+ * Clear the cached Connect AI opinion so it regenerates on next view. Called
+ * whenever the data the opinion is based on (description / statistics) changes.
+ */
+async function invalidateOpinion(userId: string): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { aiOpinion: null } });
+}
+
 /** Update name (username) and/or about (description); returns the fresh profile. */
 export async function updateProfile(
   userId: string,
   input: ProfileUpdateInput
 ): Promise<Profile | null> {
-  await prisma.user.update({ where: { id: userId }, data: input });
+  // Editing the profile (incl. description) invalidates the cached opinion.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { ...input, aiOpinion: null },
+  });
   return getProfile(userId);
 }
 
@@ -65,9 +77,11 @@ export async function setUserPhoto(
 }
 
 export async function addStat(userId: string, input: StatCreateInput) {
-  return prisma.survivalStat.create({
+  const stat = await prisma.survivalStat.create({
     data: { name: input.name, value: input.value, unit: input.unit, userId },
   });
+  await invalidateOpinion(userId);
+  return stat;
 }
 
 export async function updateStat(
@@ -81,6 +95,7 @@ export async function updateStat(
     data: input,
   });
   if (count === 0) return null;
+  await invalidateOpinion(userId);
   return prisma.survivalStat.findUnique({ where: { id } });
 }
 
@@ -88,5 +103,7 @@ export async function deleteStat(userId: string, id: string): Promise<boolean> {
   const { count } = await prisma.survivalStat.deleteMany({
     where: { id, userId },
   });
-  return count > 0;
+  if (count === 0) return false;
+  await invalidateOpinion(userId);
+  return true;
 }

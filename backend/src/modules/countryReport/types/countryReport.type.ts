@@ -1,6 +1,7 @@
 export interface CountryReportInput {
     countryCode : string;
     countryName : string;
+    topic: string;
     severity: string;
     cases:number;
     note:string;

@@ -217,6 +217,9 @@ function Panel({
           <ul className="space-y-2">
             {latest.map((r) => (
               <li key={r.id} className="text-xs">
+                {r.topic && (
+                  <p className="text-white font-semibold mb-0.5">{r.topic}</p>
+                )}
                 <div className="flex items-center gap-2">
                   <span
                     className="px-2 py-0.5 rounded-full text-[10px] font-bold text-black"
