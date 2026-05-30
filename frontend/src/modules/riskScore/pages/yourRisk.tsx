@@ -15,7 +15,7 @@ import type { PersonalRiskResult, SurvivalStat } from "../types/personal.types";
 import FactorCard from "../components/factorCard";
 import InputModal from "../components/inputModal";
 import "katex/dist/katex.min.css";
-import Latex from "react-latex-next";
+import Latex from '../Latex';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 

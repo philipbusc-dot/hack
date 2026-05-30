@@ -8,7 +8,7 @@ import type { RegionRiskPreview } from "../types/risk.types";
 import { useNavigate } from "react-router-dom";
 import RiskCard from "../components/riskCard";
 import 'katex/dist/katex.min.css';
-import Latex from 'react-latex-next';
+import Latex from '../Latex'; 
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
