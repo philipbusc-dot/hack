@@ -1,1 +1,58 @@
 @import "tailwindcss";
+
+/* ============================================================
+   SafeHAIVN — Plague theme design tokens (Tailwind v4 config).
+   This is Tailwind's required entry + theme configuration, not
+   stylesheet code — every visual style in the app is expressed
+   with Tailwind utility classes. Tokens here power bg-*, text-*,
+   border-*, rounded-*, shadow-*, font-* utilities.
+   ============================================================ */
+@theme {
+  /* Surfaces */
+  --color-bg: #0a1613;
+  --color-panel: #0b1c17;
+  --color-surface: #11261f;
+  --color-surface2: #102d26;
+  --color-line: #1d3a33;
+  --color-line2: #2a5045;
+
+  /* Text */
+  --color-ink: #d7e3dc;
+  --color-muted: #8aa399;
+  --color-faint: #566b62;
+  --color-head: #eef5ec;
+
+  /* Accent + semantics */
+  --color-accent: #a9d62f;
+  --color-accent-ink: #0a1613;
+  --color-accent-bd: #c7ee54;
+  --color-lime: #a4d233;
+  --color-danger: #e2473a;
+  --color-amber: #e0922b;
+  --color-teal: #39b8a1;
+  --color-statusdim: #7da528;
+
+  /* Priority tag palette (Recommended Actions) */
+  --color-now-bg: #3a1c19;
+  --color-now-bd: #5c2a25;
+  --color-now-tx: #ff7a6e;
+  --color-soon-bg: #3a2c14;
+  --color-soon-bd: #5c4322;
+  --color-soon-tx: #f0b056;
+  --color-mon-bg: #0f2d28;
+  --color-mon-bd: #224b44;
+  --color-mon-tx: #5fcdb8;
+
+  /* Fonts */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --radius-panel: 20px;
+  --radius-card: 14px;
+  --radius-chip: 12px;
+
+  /* Shadows / glows */
+  --shadow-glow: 0 0 22px -4px rgba(164, 210, 51, 0.45);
+  --shadow-panel: 0 30px 90px -50px rgba(0, 0, 0, 0.9);
+}
