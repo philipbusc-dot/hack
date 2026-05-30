@@ -1,0 +1,29 @@
+-- CreateTable
+CREATE TABLE "MultiplicationRecord" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "a" REAL NOT NULL,
+    "b" REAL NOT NULL,
+    "result" REAL NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "AdditionRecord" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "a" REAL NOT NULL,
+    "b" REAL NOT NULL,
+    "result" REAL NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "CountryReport" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "countryCode" TEXT NOT NULL,
+    "countryName" TEXT NOT NULL,
+    "severity" TEXT NOT NULL DEFAULT 'Moderate',
+    "cases" INTEGER NOT NULL DEFAULT 0,
+    "note" TEXT NOT NULL DEFAULT '',
+    "createAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updateAt" DATETIME NOT NULL
+);
