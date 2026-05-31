@@ -25,7 +25,7 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to="/ai" replace />;
+  if (user) return <Navigate to="/map" replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -38,7 +38,7 @@ export default function SignupPage() {
     setBusy(true);
     try {
       await signup(email.trim(), username.trim(), password);
-      navigate("/ai");
+      navigate("/map");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
     } finally {

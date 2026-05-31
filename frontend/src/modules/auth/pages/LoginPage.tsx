@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to="/ai" replace />;
+  if (user) return <Navigate to="/map" replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -23,7 +23,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login(identifier.trim(), password);
-      navigate("/ai");
+      navigate("/map");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
