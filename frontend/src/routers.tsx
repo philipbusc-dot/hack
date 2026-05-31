@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import App from "./App";
+import NotFoundPage from "./components/NotFoundPage";
 import ProtectedRoute from "./middlewares/ProtectedRoute";
 import { aiRoutes } from "./modules/ai/routers/ai.router";
 import { authRoutes } from "./modules/auth/routers/auth.router";
@@ -36,6 +37,8 @@ const mainRouter = createBrowserRouter([
           ...profileRoutes,
         ],
       },
+      // Catch-all: any unknown path → themed 404 (works logged in or out).
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ]);
